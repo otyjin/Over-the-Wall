@@ -1,0 +1,12 @@
+{
+  "name": "over-the-wall-server",
+  "version": "2.1.0",
+  "description": "Over the Wall v2.1 - Online WebSocket Server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}

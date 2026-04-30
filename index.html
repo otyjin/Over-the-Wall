@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Over the Wall v2.1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+KR:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:   #1a1c22;
+  --pnl:  #0e1014;
+  --bdr:  #252830;
+  --text: #c0c4d0;
+  --dim:  #50545e;
+  --hi:   #e8ecf5;
+  --gold: #ffdc50;
+  --blue: #3a8fd4;
+  --red:  #d44a3a;
+}
+
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: "Space Mono", monospace; overflow: hidden; }
+
+#app { display: flex; flex-direction: column; height: 100vh; max-width: 1300px; margin: 0 auto; padding: 6px 8px 4px; gap: 5px; }
+
+/* Header */
+#header { display: grid; grid-template-columns: 160px 1fr 160px; background: var(--pnl); border: 1px solid var(--bdr); border-radius: 4px; overflow: hidden; flex-shrink: 0; }
+.ph { padding: 7px 12px; display: flex; flex-direction: column; justify-content: center; gap: 2px; border-right: 1px solid var(--bdr); }
+.ph.right { border-right: none; border-left: 1px solid var(--bdr); align-items: flex-end; }
+.ph-lbl  { font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); }
+.ph-name { font-size: 18px; font-weight: 700; letter-spacing: .04em; line-height: 1.1; }
+.ph-name.dim    { color: #383b45; }
+.ph-name.bright { color: var(--hi); }
+.ph-walls { font-size: 11px; color: var(--dim); }
+
+#ch { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 5px 10px; gap: 3px; }
+#turn-line { font-size: 17px; font-weight: 700; letter-spacing: .06em; color: var(--hi); display: flex; align-items: center; gap: 8px; }
+#turn-line .sep { color: #2a2d38; }
+.tmode { font-size: 15px; font-weight: 700; }
+.tmode.defense { color: var(--red); }
+.tmode.offense { color: var(--blue); }
+
+#ap-row { display: flex; align-items: center; gap: 5px; }
+#ap-lbl { font-size: 11px; color: var(--dim); }
+.ap-dot { width: 9px; height: 9px; border-radius: 50%; background: #252830; transition: background .12s; }
+.ap-dot.active { background: var(--gold); box-shadow: 0 0 5px rgba(255,220,80,.55); }
+#msg-line { font-size: 10px; color: var(--dim); max-width: 360px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Main */
+#main { display: flex; gap: 5px; flex: 1; min-height: 0; }
+#canvas-wrap { flex: 1; display: flex; align-items: center; justify-content: center; background: var(--pnl); border: 1px solid var(--bdr); border-radius: 4px; overflow: hidden; }
+#gameCanvas { display: block; cursor: crosshair; }
+
+/* Sidebar */
+#sidebar { width: 190px; display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
+.panel { background: var(--pnl); border: 1px solid var(--bdr); border-radius: 4px; padding: 8px 11px; }
+.panel-title { font-size: 9px; letter-spacing: .14em; text-transform: uppercase; color: var(--dim); margin-bottom: 7px; border-bottom: 1px solid var(--bdr); padding-bottom: 4px; }
+
+#view-toggle-wrap { display: flex; gap: 4px; margin-bottom: 5px; }
+#view-toggle-wrap .btn { flex: 1; font-size: 10px; padding: 5px 0; }
+.anchor-row { font-size: 10px; color: var(--gold); }
+
+.legend-row { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; font-size: 10px; }
+.legend-box { width: 13px; height: 13px; border-radius: 2px; flex-shrink: 0; }
+
+.key-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: 10px; }
+.key-row .keys { color: var(--dim); font-size: 9px; }
+kbd { background: #252830; border: 1px solid #353840; border-radius: 2px; padding: 1px 3px; font-size: 9px; font-family: inherit; }
+
+.btn { width: 100%; padding: 6px 0; background: transparent; border: 1px solid var(--bdr); border-radius: 3px; color: var(--text); font-family: inherit; font-size: 11px; cursor: pointer; transition: background .1s; }
+.btn:hover { background: #252830; }
+.btn.primary { border-color: var(--gold); color: var(--gold); }
+.btn.primary:hover { background: rgba(255,220,80,.08); }
+.btn.sel-def { border-color: var(--red);  color: var(--red);  background: rgba(212,74,58,.08); }
+.btn.sel-off { border-color: var(--blue); color: var(--blue); background: rgba(58,143,212,.08); }
+
+/* Overlay */
+#overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.8); z-index: 100; align-items: center; justify-content: center; flex-direction: column; gap: 16px; }
+#overlay.show { display: flex; }
+#overlay-title { font-size: 52px; font-weight: 700; }
+#overlay-sub   { font-size: 12px; color: var(--dim); }
+.overlay-btn { padding: 9px 30px; background: transparent; border: 1px solid var(--gold); border-radius: 3px; color: var(--gold); font-family: inherit; font-size: 13px; cursor: pointer; }
+.overlay-btn:hover { background: rgba(255,220,80,.1); }
+
+/* Toast */
+#toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--pnl); border: 1px solid var(--bdr); border-radius: 3px; padding: 5px 14px; font-size: 11px; color: var(--red); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 200; }
+#toast.show { opacity: 1; }
+
+@media (max-width: 700px) { #sidebar { display: none; } }
+
+/* Rules Modal */
+#rules-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.74); z-index: 300; align-items: center; justify-content: center; }
+#rules-modal.show { display: flex; }
+#rules-box { background: var(--pnl); border: 1px solid var(--bdr); border-radius: 6px; width: min(480px, 92vw); max-height: 82vh; display: flex; flex-direction: column; overflow: hidden; }
+#rules-header { display: flex; align-items: center; justify-content: space-between; padding: 11px 15px 9px; border-bottom: 1px solid var(--bdr); flex-shrink: 0; }
+#rules-header span { font-size: 12px; font-weight: 700; color: var(--hi); }
+#rules-close { background: none; border: none; color: var(--dim); font-size: 17px; cursor: pointer; }
+#rules-close:hover { color: var(--hi); }
+#rules-body { overflow-y: auto; padding: 13px 15px 15px; font-size: 12px; line-height: 1.7; color: var(--text); scrollbar-width: thin; scrollbar-color: #252830 transparent; }
+.r-section { margin-bottom: 13px; }
+.r-title { font-size: 10px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--gold); margin-bottom: 5px; padding-bottom: 3px; border-bottom: 1px solid var(--bdr); }
+.r-row { display: flex; gap: 7px; margin-bottom: 3px; }
+.r-icon { width: 18px; flex-shrink: 0; text-align: center; }
+.r-sub { color: var(--dim); font-size: 11px; margin: 0 0 4px 25px; }
+.r-key-table { width: 100%; border-collapse: collapse; margin-top: 3px; }
+.r-key-table td { padding: 2px 4px; font-size: 11px; }
+.r-key-table td:first-child { color: var(--dim); width: 44%; }
+.r-key-table td:last-child  { color: var(--hi); }
+
+/* ── 로비 화면 ──────────────────────────────────────── */
+#lobby {
+  position: fixed; inset: 0; z-index: 500;
+  background: #0e1014;
+  display: flex; align-items: center; justify-content: center;
+}
+#lobby-box {
+  background: #13161c; border: 1px solid #252830;
+  border-radius: 8px; padding: 36px 40px;
+  width: 340px; display: flex; flex-direction: column; gap: 14px;
+}
+#lobby-title {
+  font-size: 15px; font-weight: 700; letter-spacing: .08em;
+  color: #e8ecf5; text-align: center; margin-bottom: 4px;
+}
+#lobby-title span { color: #ffdc50; }
+.lobby-sep {
+  border: none; border-top: 1px solid #252830; margin: 4px 0;
+}
+.lobby-btn {
+  width: 100%; padding: 10px 0;
+  background: transparent; border: 1px solid #252830;
+  border-radius: 4px; color: #c0c4d0; font-family: inherit;
+  font-size: 12px; cursor: pointer; letter-spacing: .05em;
+  transition: background .1s, border-color .1s;
+}
+.lobby-btn:hover { background: #252830; }
+.lobby-btn.primary { border-color: #ffdc50; color: #ffdc50; font-weight: 700; }
+.lobby-btn.primary:hover { background: rgba(255,220,80,.08); }
+.lobby-btn.secondary { border-color: #3a8fd4; color: #3a8fd4; }
+.lobby-btn.secondary:hover { background: rgba(58,143,212,.08); }
+.lobby-btn.local { border-color: #4ad990; color: #4ad990; }
+.lobby-btn.local:hover { background: rgba(74,217,144,.08); }
+.lobby-input {
+  width: 100%; padding: 8px 10px;
+  background: #0e1014; border: 1px solid #252830;
+  border-radius: 4px; color: #e8ecf5; font-family: inherit;
+  font-size: 13px; letter-spacing: .1em; text-transform: uppercase;
+  outline: none;
+}
+.lobby-input:focus { border-color: #3a8fd4; }
+.lobby-input::placeholder { color: #404450; text-transform: none; letter-spacing: 0; }
+.lobby-label { font-size: 10px; color: #50545e; letter-spacing: .1em; text-transform: uppercase; }
+#lobby-status {
+  font-size: 11px; color: #50545e; text-align: center; min-height: 16px;
+}
+#lobby-status.ok  { color: #4ad990; }
+#lobby-status.err { color: #d44a3a; }
+#lobby-status.wait { color: #ffdc50; }
+
+/* 온라인 모드 — 내 역할 배지 */
+#role-badge {
+  display: none; position: fixed; top: 0; left: 50%;
+  transform: translateX(-50%);
+  background: #0e1014; border: 1px solid #252830;
+  border-top: none; border-radius: 0 0 6px 6px;
+  padding: 3px 16px; font-size: 11px; color: #50545e;
+  z-index: 10; letter-spacing: .06em;
+}
+#role-badge span { font-weight: 700; }
+#role-badge.show { display: block; }
+
+/* 온라인 — 상대 대기 중 오버레이 */
+#waiting-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.7); z-index: 90;
+  align-items: center; justify-content: center; flex-direction: column; gap: 14px;
+}
+#waiting-overlay.show { display: flex; }
+#waiting-text { font-size: 14px; color: #c0c4d0; letter-spacing: .06em; }
+#room-code-display {
+  font-size: 28px; font-weight: 700; color: #ffdc50; letter-spacing: .2em;
+}
+#waiting-sub { font-size: 11px; color: #50545e; }
+
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- 헤더 — 원본 pygame 레이아웃 -->
+  <div id="header">
+    <!-- WHITE: x=0 좌측 시작 -->
+    <div class="ph">
+      <div class="ph-lbl">Player</div>
+      <div class="ph-name dim" id="white-name">WHITE</div>
+      <div class="ph-walls" id="white-stat">Walls: 10</div>
+    </div>
+    <!-- 중앙: 턴/모드/AP -->
+    <div id="ch">
+      <div id="turn-line">
+        <span id="turn-label">BLACK TURN</span>
+        <span class="sep">|</span>
+        <span class="tmode defense" id="turn-mode">DEFENSE</span>
+      </div>
+      <div id="ap-row">
+        <span id="ap-lbl">AP:</span>
+        <div class="ap-dot active" id="ap0"></div>
+        <div class="ap-dot active" id="ap1"></div>
+        <div class="ap-dot active" id="ap2"></div>
+      </div>
+      <div id="msg-line">Game start! BLACK moves first.</div>
+    </div>
+    <!-- BLACK: x=14 우측 시작 -->
+    <div class="ph right">
+      <div class="ph-lbl">Player</div>
+      <div class="ph-name bright" id="black-name">BLACK</div>
+      <div class="ph-walls" id="black-stat">Walls: 10</div>
+    </div>
+  </div>
+
+  <!-- 메인 -->
+  <div id="main">
+    <div id="canvas-wrap">
+      <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <div id="sidebar">
+      <!-- 뷰 전환 -->
+      <div class="panel">
+        <div class="panel-title">Aura View</div>
+        <div id="view-toggle-wrap">
+          <button class="btn sel-def" id="btn-defense" onclick="setView('defense')">Defense</button>
+          <button class="btn"         id="btn-offense" onclick="setView('offense')">Offense</button>
+        </div>
+        <div class="anchor-row" id="anchor-info">Anchor: —</div>
+      </div>
+
+      <!-- 범례 -->
+      <div class="panel">
+        <div class="panel-title">Legend</div>
+        <div class="legend-row">
+          <div class="legend-box" style="background:rgba(210,230,255,.31)"></div>
+          Sanctuary
+        </div>
+        <div class="legend-row">
+          <div class="legend-box" style="background:rgba(200,80,50,.63)"></div>
+          Swamp (2× aura)
+        </div>
+        <div class="legend-row">
+          <div class="legend-box" style="border:2px solid rgba(245,245,245,.9);background:rgba(200,80,50,.63)"></div>
+          Anchor Zone (3× aura)
+        </div>
+        <div class="legend-row">
+          <div class="legend-box" style="background:#ffdc50;border-radius:50%"></div>
+          Your Anchor
+        </div>
+        <div class="legend-row">
+          <div class="legend-box" style="background:rgba(255,180,180,.59)"></div>
+          Goal Cell
+        </div>
+      </div>
+
+      <!-- 키 안내 -->
+      <div class="panel">
+        <div class="panel-title">Controls</div>
+        <div class="key-row">
+          <span>Move</span>
+          <span class="keys"><kbd>↑↓←→</kbd></span>
+        </div>
+        <div class="key-row">
+          <span>Str.Jump</span>
+          <span class="keys"><kbd>Shift+↑↓←→</kbd></span>
+        </div>
+        <div class="key-row">
+          <span>Diag.Jump</span>
+          <span class="keys"><kbd>7/9/1/3</kbd></span>
+        </div>
+        <div class="key-row">
+          <span>End Turn</span>
+          <span class="keys"><kbd>Enter</kbd></span>
+        </div>
+        <div class="key-row">
+          <span>Place Wall</span>
+          <span class="keys">Left Click</span>
+        </div>
+        <div class="key-row">
+          <span>Remove Wall</span>
+          <span class="keys">Right Click</span>
+        </div>
+        <div class="key-row">
+          <span>Aura View</span>
+          <span class="keys"><kbd>Space (hold)</kbd></span>
+        </div>
+      </div>
+
+      <!-- 버튼 -->
+      <div class="panel">
+        <button class="btn primary" onclick="restartGame()" style="margin-bottom:5px">⟳ Restart</button>
+        <button class="btn" onclick="toggleHelp()">? Rules</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 게임 오버 오버레이 -->
+<div id="overlay">
+  <div id="overlay-title">—</div>
+  <div id="overlay-sub">Press R or click below to restart</div>
+  <button class="overlay-btn" onclick="restartGame()">RESTART</button>
+</div>
+
+<!-- 에러 토스트 -->
+<div id="toast"></div>
+
+<!-- 규칙 모달 -->
+<div id="rules-modal" onclick="if(event.target===this)toggleHelp()">
+  <div id="rules-box">
+    <div id="rules-header">
+      <span>Over the Wall v2.1 — 규칙 요약</span>
+      <button id="rules-close" onclick="toggleHelp()">✕</button>
+    </div>
+    <div id="rules-body">
+
+      <div class="r-section">
+        <div class="r-title">목표</div>
+        <div class="r-row"><span class="r-icon">🎯</span><span>상대 시작 칸에 먼저 도달하면 승리</span></div>
+        <div class="r-sub">BLACK 목표: (0,7) &nbsp;|&nbsp; WHITE 목표: (14,7)</div>
+        <div class="r-row"><span class="r-icon">⚡</span><span>턴당 AP 3 — AP를 모두 쓰면 자동으로 턴 종료</span></div>
+      </div>
+
+      <div class="r-section">
+        <div class="r-title">이동</div>
+        <div class="r-row"><span class="r-icon">🏃</span><span>일반 이동 (Arrow Keys) — 1AP</span></div>
+        <div class="r-row"><span class="r-icon">🚀</span><span>직선 점프 (Shift + Arrow)</span></div>
+        <div class="r-sub">앞칸에 내 벽 또는 상대 말이 있을 때 그 너머로 점프 (1AP)</div>
+        <div class="r-row"><span class="r-icon">🔀</span><span>대각선 점프 (7 / 9 / 1 / 3 키) — 2AP</span></div>
+        <div class="r-sub">중간 칸에 내 벽 또는 상대 말이 있어야 함</div>
+        <div class="r-row"><span class="r-icon">💪</span><span>밀치기 — 상대 칸으로 이동 시 자동 적용</span></div>
+        <div class="r-sub">상대 뒤 칸이 비어 있어야 함 / 이동 비용과 동일</div>
+      </div>
+
+      <div class="r-section">
+        <div class="r-title">벽</div>
+        <div class="r-row"><span class="r-icon">🧱</span><span>Left Click 설치 (1AP) &nbsp;/&nbsp; Right Click 회수 (0AP)</span></div>
+        <div class="r-sub">최대 10개 / 내 벽끼리 8방향 인접 설치 불가</div>
+        <div class="r-sub">플레이어가 서 있는 칸·시작칸·Anchor 칸에는 설치 불가</div>
+        <div class="r-sub">자신의 성역 안에는 자신의 벽 설치 불가 / 상대 성역에는 설치 가능</div>
+        <div class="r-sub">벽은 장애물이자 오라를 발생시켜 늪·Anchor 구역을 형성</div>
+      </div>
+
+      <div class="r-section">
+        <div class="r-title">늪 (Swamp)</div>
+        <div class="r-row"><span class="r-icon">🌿</span><span>상대 벽 오라 2중첩 이상인 칸</span></div>
+        <div class="r-sub">늪 → 늪 이동 시 2AP / 그 외 진입·탈출은 1AP</div>
+        <div class="r-sub">내 성역 안에서는 늪 판정 면제</div>
+      </div>
+
+      <div class="r-section">
+        <div class="r-title">Anchor Zone (3중첩)</div>
+        <div class="r-row"><span class="r-icon">⚓</span><span>상대 벽 오라 3중첩 이상인 칸</span></div>
+        <div class="r-sub">진입 직전 마지막 안전칸이 Anchor로 기록됨</div>
+        <div class="r-sub">턴 종료 시 아직 Anchor Zone 안에 있으면 Anchor 칸으로 복귀</div>
+        <div class="r-sub">구역을 완전히 빠져나오면 Anchor 해제</div>
+        <div class="r-sub">Anchor 칸에는 벽 설치 불가</div>
+        <div class="r-sub">⚠ 통행금지가 아니라 <b>턴 종료 금지</b>에 가까운 위험 구역</div>
+      </div>
+
+      <div class="r-section">
+        <div class="r-title">성역 (Sanctuary)</div>
+        <div class="r-row"><span class="r-icon">🏠</span><span>시작점으로부터 맨해튼 거리 ≤ 2인 칸</span></div>
+        <div class="r-sub">늪 판정 면제 / 내 벽 설치 불가</div>
+      </div>
+
+      <div class="r-section">
+        <div class="r-title">조작키</div>
+        <table class="r-key-table">
+          <tr><td>↑ ↓ ← →</td><td>이동</td></tr>
+          <tr><td>Shift + 방향키</td><td>직선 점프</td></tr>
+          <tr><td>7 / 9 / 1 / 3</td><td>대각선 점프</td></tr>
+          <tr><td>Enter</td><td>턴 종료</td></tr>
+          <tr><td>Left Click</td><td>벽 설치</td></tr>
+          <tr><td>Right Click</td><td>벽 회수</td></tr>
+          <tr><td>Space (누르는 동안)</td><td>Offense 아우라 뷰 전환</td></tr>
+          <tr><td>R</td><td>재시작</td></tr>
+        </table>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="engine.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  Over the Wall v2.1 — Web Client
+// ═══════════════════════════════════════════════════════════════════
+
+// ── 캔버스 설정 ────────────────────────────────────────────────────
+const canvas  = document.getElementById("gameCanvas");
+const ctx     = canvas.getContext("2d");
+const wrap    = document.getElementById("canvas-wrap");
+
+const CELL    = 40;          // 픽셀/셀
+const PAD     = 0;
+let   scale   = 1;           // DPR 대응
+
+function resizeCanvas() {
+  const ww = wrap.clientWidth  - 8;
+  const wh = wrap.clientHeight - 8;
+  const maxCells = GRID_SIZE * CELL;
+  scale = Math.min(ww / maxCells, wh / maxCells, 1.6);
+  canvas.style.width  = `${maxCells * scale}px`;
+  canvas.style.height = `${maxCells * scale}px`;
+  canvas.width  = maxCells;
+  canvas.height = maxCells;
+}
+window.addEventListener("resize", () => { resizeCanvas(); render(); });
+
+// ── 게임 상태 ──────────────────────────────────────────────────────
+let gs = newState();
+
+// ── 뷰 상태 ───────────────────────────────────────────────────────
+let viewMode    = "defense";   // "offense" | "defense"
+let spaceHeld   = false;       // Space 누르고 있는 동안 offense뷰로 전환
+let hoveredCell = null;        // { x, y }
+
+function setView(mode) {
+  viewMode = mode;
+  document.getElementById("btn-defense").className = "btn " + (mode === "defense" ? "sel-def" : "");
+  document.getElementById("btn-offense").className = "btn " + (mode === "offense" ? "sel-off" : "");
+  syncModeLabel();
+  render();
+}
+
+// ── 토스트 ────────────────────────────────────────────────────────
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 1800);
+}
+
+// ── UI 업데이트 ──────────────────────────────────────────────────
+function syncModeLabel() {
+  const m  = spaceHeld ? "offense" : viewMode;
+  const el = document.getElementById("turn-mode");
+  el.textContent = m.toUpperCase();
+  el.className   = "tmode " + m;
+}
+
+function updateUI() {
+  const s = gs;
+
+  // AP 점
+  for (let i = 0; i < 3; i++)
+    document.getElementById(`ap${i}`).classList.toggle("active", i < s.actions_left);
+
+  // 턴 + 모드 라벨
+  document.getElementById("turn-label").textContent = `${s.current_turn} TURN`;
+  document.getElementById("msg-line").textContent = s.last_msg || "";
+  syncModeLabel();
+
+  // 플레이어 이름 활성화
+  const isBlk = s.current_turn === "BLACK";
+  document.getElementById("black-name").className = "ph-name " + (isBlk  ? "bright" : "dim");
+  document.getElementById("white-name").className = "ph-name " + (!isBlk ? "bright" : "dim");
+
+  // 벽 수량
+  document.getElementById("black-stat").textContent = `Walls: ${s.black_inv}`;
+  document.getElementById("white-stat").textContent = `Walls: ${s.white_inv}`;
+
+  // 앵커
+  const myAnc = s.current_turn === "BLACK" ? s.black_anchor : s.white_anchor;
+  document.getElementById("anchor-info").textContent =
+    myAnc ? `Anchor: (${myAnc[0]}, ${myAnc[1]})` : "Anchor: —";
+
+  // 온라인 모드 — 내 턴 여부를 msg-line 색으로 구분
+  if (onlineMode && myRole) {
+    const myTurn = s.current_turn === myRole;
+    document.getElementById("msg-line").style.color = myTurn ? "#4ad990" : "#50545e";
+  } else {
+    document.getElementById("msg-line").style.color = "";
+  }
+
+  // 게임 오버
+  const ov = document.getElementById("overlay");
+  if (s.game_over) {
+    ov.classList.add("show");
+    document.getElementById("overlay-title").textContent = `${s.winner} WINS!`;
+    document.getElementById("overlay-title").style.color = s.winner === "WHITE" ? "#e8ecf5" : "#888";
+  } else {
+    ov.classList.remove("show");
+  }
+}
+
+// ── 렌더링 — 원본 pygame 색상 기준 ───────────────────────────────
+const C = {
+  // 그리드 배경: BG_COLOR=(130,140,150), 라인: GRID_COLOR=(100,110,120)
+  gridBg:      "#828c96",
+  gridLine:    "#646e78",
+  // 성역: SANCTUARY_COLOR=(210,230,255,80/255 ≈ .31)
+  sanctuary:   "rgba(210,230,255,.31)",
+  // 목표칸: GOAL_COLOR=(255,180,180,150/255 ≈ .59)
+  goal:        "rgba(255,180,180,.59)",
+  // 아우라: defense=빨강, offense=파랑
+  // 원본 alpha: 2중첩이상=160/255≈.63, 1중첩=50/255≈.20
+  auraRed:     [200,  80,  50],
+  auraBlue:    [ 50, 120, 200],
+  auraHi:      0.63,
+  auraLo:      0.20,
+  // 앵커: ANCHOR_COLOR=(255,220,80)
+  anchor:      "#ffdc50",
+  wallBlack:   "#3c3c3c",
+  wallWhite:   "#f0f0f0",
+  playerBlack: "#1e1e1e",
+  playerWhite: "#ffffff",
+  playerRim:   "#ffdc50",
+  hoverOk:     "rgba(80,200,120,.26)",
+  hoverBad:    "rgba(200,80,50,.22)",
+};
+
+function rgba(rgb, a) { return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`; }
+
+function render() {
+  const s   = gs;
+  const W   = GRID_SIZE * CELL;
+  const walls = s.walls;
+
+  ctx.clearRect(0, 0, W, W);
+
+  // 배경 — 원본 BG_COLOR=(130,140,150) 회청색
+  ctx.fillStyle = C.gridBg;
+  ctx.fillRect(0, 0, W, W);
+
+  // 현재 뷰어 결정 — Space를 누르고 있으면 일시적으로 offense 뷰
+  const effectiveView = spaceHeld ? "offense" : viewMode;
+  const auraOwner = effectiveView === "offense"
+    ? s.current_turn
+    : (s.current_turn === "BLACK" ? "WHITE" : "BLACK");
+  const auraRGB = effectiveView === "offense" ? C.auraBlue : C.auraRed;
+
+  // ── 셀 배경 패스 ──
+  for (let x = 0; x < GRID_SIZE; x++) {
+    for (let y = 0; y < GRID_SIZE; y++) {
+      const px = x * CELL, py = y * CELL;
+
+      // 성역
+      const isBlkSanc = cellIsSanctuary(x, y, "BLACK");
+      const isWhtSanc = cellIsSanctuary(x, y, "WHITE");
+      if (isBlkSanc || isWhtSanc) {
+        ctx.fillStyle = C.sanctuary;
+        ctx.fillRect(px, py, CELL, CELL);
+      }
+
+      // 목표 칸 (상대 시작점)
+      if (posEq([x, y], BLACK_START) || posEq([x, y], WHITE_START)) {
+        ctx.fillStyle = C.goal;
+        ctx.fillRect(px, py, CELL, CELL);
+      }
+
+      // 아우라 오버레이 — 원본 alpha: 2중첩+=.63, 1중첩=.20
+      const ac = countAuras(x, y, auraOwner, walls);
+      if (ac > 0) {
+        ctx.fillStyle = rgba(auraRGB, ac >= 2 ? C.auraHi : C.auraLo);
+        ctx.fillRect(px, py, CELL, CELL);
+      }
+
+      // 늪은 별도 표시 없음 — 아우라 2중첩이 곧 늪 시각화
+
+      // 3중첩 구역 — 벽이 없는 칸에만 둥근 사각형 테두리
+      if (ac >= CONFIG.ANCHOR_AURA_THRESHOLD && !walls[`${x},${y}`]) {
+        ctx.strokeStyle = auraOwner === "BLACK" ? "rgba(30,30,30,.9)" : "rgba(245,245,245,.9)";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.roundRect(px + 6, py + 6, CELL - 12, CELL - 12, 4);
+        ctx.stroke();
+      }
+
+      // 내 앵커 표시
+      const myAnc = s.current_turn === "BLACK" ? s.black_anchor : s.white_anchor;
+      if (myAnc && posEq([x, y], myAnc)) {
+        ctx.fillStyle = rgba([255, 220, 80], 0.2);
+        ctx.fillRect(px + 4, py + 4, CELL - 8, CELL - 8);
+        ctx.strokeStyle = C.anchor;
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([]);
+        ctx.strokeRect(px + 6, py + 6, CELL - 12, CELL - 12);
+        ctx.fillStyle = C.anchor;
+        ctx.font = `bold 11px 'Space Mono'`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("A", px + CELL / 2, py + CELL / 2);
+      }
+
+      // 호버는 셀 루프 밖에서 맨 마지막에 그림
+    }
+  }
+
+  // ── 그리드 라인 — 원본 GRID_COLOR=(100,110,120) ──
+  ctx.strokeStyle = C.gridLine;
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= GRID_SIZE; i++) {
+    ctx.beginPath(); ctx.moveTo(i * CELL, 0);   ctx.lineTo(i * CELL, W);   ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i * CELL);   ctx.lineTo(W, i * CELL);   ctx.stroke();
+  }
+
+  // ── 벽 ──
+  for (const [key, owner] of Object.entries(walls)) {
+    const [wx, wy] = key.split(",").map(Number);
+    const px = wx * CELL, py = wy * CELL;
+    const wc = owner === "BLACK" ? C.wallBlack : C.wallWhite;
+    roundRect(ctx, px + 6, py + 6, CELL - 12, CELL - 12, 4, wc);
+    // 테두리
+    ctx.strokeStyle = owner === "BLACK" ? "#555" : "#ddd";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(px + 6, py + 6, CELL - 12, CELL - 12, 4);
+    ctx.stroke();
+  }
+
+  // ── 플레이어 말 ──
+  drawPlayer(s.black_pos[0], s.black_pos[1], "BLACK", s.current_turn === "BLACK");
+  drawPlayer(s.white_pos[0], s.white_pos[1], "WHITE", s.current_turn === "WHITE");
+
+  // ── 호버 — 맨 마지막에 그려서 아우라/벽 위에 항상 표시 ──
+  if (hoveredCell && !gs.game_over) {
+    const { x, y } = hoveredCell;
+    const px = x * CELL, py = y * CELL;
+    const canW = canPlace(x, y, s.current_turn, walls, s);
+    if (canW) {
+      // 설치 가능: 초록 배경 + 초록 둥근 사각형 윤곽
+      ctx.fillStyle = "rgba(80,210,130,.45)";
+      ctx.fillRect(px, py, CELL, CELL);
+      ctx.strokeStyle = "rgba(80,230,140,.95)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(px + 6, py + 6, CELL - 12, CELL - 12, 4);
+      ctx.stroke();
+    } else {
+      // 설치 불가: 붉은 배경
+      ctx.fillStyle = "rgba(210,70,50,.35)";
+      ctx.fillRect(px, py, CELL, CELL);
+    }
+  }
+
+  // 목표 라벨 제거 — 핑크 셀 자체로 구분 가능
+}
+
+function roundRect(ctx, x, y, w, h, r, fill) {
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+  ctx.fill();
+}
+
+function drawPlayer(x, y, color, active) {
+  const cx = x * CELL + CELL / 2;
+  const cy = y * CELL + CELL / 2;
+  const r  = 16;
+
+  if (active) {
+    ctx.shadowColor = color === "BLACK" ? "rgba(255,255,255,.35)" : "rgba(180,210,255,.45)";
+    ctx.shadowBlur  = 14;
+  }
+
+  ctx.fillStyle = color === "BLACK" ? C.playerBlack : C.playerWhite;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+
+  ctx.strokeStyle = color === "BLACK" ? "#555" : (active ? "#ddd" : "#aaa");
+  ctx.lineWidth = active ? 2.5 : 1.5;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+
+  ctx.shadowBlur = 0; ctx.shadowColor = "transparent";
+}
+
+// ── 입력 처리 ────────────────────────────────────────────────────
+
+function dispatchAction(action) {
+  if (gs.game_over) return;
+
+  // 온라인 모드: 내 턴이 아니면 무시, 서버로 전송
+  if (onlineMode) {
+    if (gs.current_turn !== myRole) return;
+    wsSend({ type: "action", action });
+    return;
+  }
+
+  // 로컬 모드: 직접 처리
+  const res = processAction(action, gs);
+  if (!res.ok) { showToast(res.msg); }
+  updateUI();
+  render();
+}
+
+// 키보드
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") {
+    document.getElementById("rules-modal").classList.remove("show");
+    return;
+  }
+  if (e.key === " ") { e.preventDefault(); spaceHeld = true; syncModeLabel(); render(); return; }
+  if (gs.game_over) {
+    if (e.key === "r" || e.key === "R") restartGame();
+    return;
+  }
+
+  if (e.key === "Enter") { dispatchAction({ type: "pass" }); return; }
+
+  const shift = e.shiftKey;
+
+  // 방향키 → 이동/직선점프
+  const dirMap = {
+    ArrowUp:    [0, -1], ArrowDown:  [0,  1],
+    ArrowLeft:  [-1, 0], ArrowRight: [1,  0],
+  };
+  if (dirMap[e.key]) {
+    e.preventDefault();
+    const [dx, dy] = dirMap[e.key];
+    dispatchAction({ type: "move", dx, dy, shift });
+    return;
+  }
+
+  // 숫자패드 대각선 점프
+  const diagMap = {
+    "7": [-1, -1], "Home": [-1, -1],
+    "9": [1,  -1], "PageUp": [1, -1],
+    "1": [-1,  1], "End": [-1, 1],
+    "3": [1,   1], "PageDown": [1, 1],
+  };
+  if (diagMap[e.key]) {
+    e.preventDefault();
+    const [dx, dy] = diagMap[e.key];
+    dispatchAction({ type: "move", dx, dy, shift: false });
+    return;
+  }
+
+  if (e.key === "r" || e.key === "R") restartGame();
+});
+
+document.addEventListener("keyup", e => {
+  if (e.key === " ") { spaceHeld = false; syncModeLabel(); render(); }
+});
+
+// 마우스
+canvas.addEventListener("mousemove", e => {
+  const rect = canvas.getBoundingClientRect();
+  const sx = (e.clientX - rect.left) / scale;
+  const sy = (e.clientY - rect.top)  / scale;
+  hoveredCell = { x: Math.floor(sx / CELL), y: Math.floor(sy / CELL) };
+  if (!inBounds(hoveredCell.x, hoveredCell.y)) hoveredCell = null;
+  render();
+});
+canvas.addEventListener("mouseleave", () => { hoveredCell = null; render(); });
+
+canvas.addEventListener("click", e => {
+  if (gs.game_over) return;
+  const rect = canvas.getBoundingClientRect();
+  const gx = Math.floor((e.clientX - rect.left) / scale / CELL);
+  const gy = Math.floor((e.clientY - rect.top)  / scale / CELL);
+  if (!inBounds(gx, gy)) return;
+  dispatchAction({ type: "place", x: gx, y: gy });
+});
+
+canvas.addEventListener("contextmenu", e => {
+  e.preventDefault();
+  if (gs.game_over) return;
+  const rect = canvas.getBoundingClientRect();
+  const gx = Math.floor((e.clientX - rect.left) / scale / CELL);
+  const gy = Math.floor((e.clientY - rect.top)  / scale / CELL);
+  if (!inBounds(gx, gy)) return;
+  dispatchAction({ type: "remove", x: gx, y: gy });
+});
+
+// ── 온라인 멀티플레이 ────────────────────────────────────────────
+let ws         = null;
+let onlineMode = false;
+let myRole     = null;   // "BLACK" | "WHITE" | null (로컬)
+let sessionId  = null;
+
+function setLobbyStatus(msg, cls = "") {
+  const el = document.getElementById("lobby-status");
+  el.textContent = msg;
+  el.className = cls;
+}
+
+function connectWS(cb) {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const url   = `${proto}://${location.host}`;
+  ws = new WebSocket(url);
+
+  ws.onopen = () => { console.log("[WS] Connected"); cb && cb(); };
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    handleServerMsg(msg);
+  };
+
+  ws.onclose = () => {
+    console.log("[WS] Disconnected");
+    if (onlineMode) showToast("서버 연결이 끊겼습니다.");
+  };
+
+  ws.onerror = () => setLobbyStatus("서버에 연결할 수 없습니다.", "err");
+}
+
+function wsSend(obj) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+}
+
+function handleServerMsg(msg) {
+  switch (msg.type) {
+
+    case "connected":
+      sessionId = msg.sessionId;
+      break;
+
+    case "room_created":
+      myRole    = msg.role;
+      onlineMode = true;
+      gs = msg.state;
+      // 상대 대기 화면
+      document.getElementById("room-code-display").textContent = msg.roomId;
+      document.getElementById("waiting-overlay").classList.add("show");
+      setLobbyStatus("방 생성됨. 상대방을 기다리는 중...", "wait");
+      break;
+
+    case "room_joined":
+      myRole    = msg.role;
+      onlineMode = true;
+      gs = msg.state;
+      startOnlineGame();
+      break;
+
+    case "game_start":
+      gs = msg.state;
+      startOnlineGame();
+      break;
+
+    case "state":
+      gs = msg.state;
+      updateUI();
+      render();
+      break;
+
+    case "opponent_disconnected":
+      showToast("상대방이 연결을 끊었습니다. 재접속을 기다립니다...");
+      break;
+
+    case "reconnected":
+      myRole    = msg.role;
+      onlineMode = true;
+      gs = msg.state;
+      startOnlineGame();
+      break;
+
+    case "error":
+      showToast(msg.msg);
+      setLobbyStatus(msg.msg, "err");
+      break;
+  }
+}
+
+function startOnlineGame() {
+  // 로비 숨기기
+  document.getElementById("lobby").style.display = "none";
+  document.getElementById("waiting-overlay").classList.remove("show");
+  // 역할 배지 표시
+  const badge = document.getElementById("role-badge");
+  document.getElementById("role-badge-text").textContent = myRole;
+  badge.classList.add("show");
+  updateUI();
+  render();
+}
+
+// ── 로비 버튼 핸들러 ─────────────────────────────────────────────
+
+function lobbyCreateRoom() {
+  setLobbyStatus("서버에 연결 중...", "wait");
+  connectWS(() => {
+    setTimeout(() => wsSend({ type: "create_room" }), 100);
+  });
+}
+
+function lobbyJoinRoom() {
+  const code = document.getElementById("room-code-input").value.trim().toUpperCase();
+  if (code.length < 4) { setLobbyStatus("방 코드를 입력하세요.", "err"); return; }
+  setLobbyStatus("서버에 연결 중...", "wait");
+  connectWS(() => {
+    setTimeout(() => wsSend({ type: "join_room", roomId: code }), 100);
+  });
+}
+
+function lobbyLocal() {
+  onlineMode = false;
+  myRole     = null;
+  document.getElementById("lobby").style.display = "none";
+  gs = newState();
+  updateUI();
+  render();
+}
+
+// ── 게임 제어 ────────────────────────────────────────────────────
+
+function restartGame() {
+  if (onlineMode) {
+    wsSend({ type: "restart" });
+  } else {
+    gs = newState();
+    updateUI();
+    render();
+  }
+}
+
+function toggleHelp() {
+  document.getElementById("rules-modal").classList.toggle("show");
+}
+
+// ── 시작 ─────────────────────────────────────────────────────────
+resizeCanvas();
+updateUI();
+render();
+</script>
+
+<!-- 로비 -->
+<div id="lobby">
+  <div id="lobby-box">
+    <div id="lobby-title">Over the Wall <span>v2.1</span></div>
+
+    <button class="lobby-btn primary" onclick="lobbyCreateRoom()">방 만들기 (온라인)</button>
+
+    <hr class="lobby-sep">
+    <div class="lobby-label">방 코드 입력</div>
+    <input id="room-code-input" class="lobby-input" maxlength="6"
+           placeholder="XXXXXX" oninput="this.value=this.value.toUpperCase()"
+           onkeydown="if(event.key==='Enter') lobbyJoinRoom()">
+    <button class="lobby-btn secondary" onclick="lobbyJoinRoom()">입장 (온라인)</button>
+
+    <hr class="lobby-sep">
+    <button class="lobby-btn local" onclick="lobbyLocal()">로컬 2인 플레이</button>
+
+    <div id="lobby-status"></div>
+  </div>
+</div>
+
+<!-- 내 역할 배지 (온라인) -->
+<div id="role-badge">You: <span id="role-badge-text">—</span></div>
+
+<!-- 상대 대기 오버레이 -->
+<div id="waiting-overlay">
+  <div id="waiting-text">상대방을 기다리는 중...</div>
+  <div id="room-code-display"></div>
+  <div id="waiting-sub">위 코드를 상대에게 알려주세요</div>
+</div>
+
+</body>
+</html>
