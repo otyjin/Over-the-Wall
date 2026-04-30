@@ -68,11 +68,13 @@ function createRoom(roomId) {
     id:      roomId,
     state:   newState(),
     players: { BLACK: null, WHITE: null },
+    restartVotes: { BLACK: false, WHITE: false },
   };
   rooms.set(roomId, room);
   console.log(`[Room] Created: ${roomId}`);
   return room;
 }
+
 
 function getRoomInfo(room) {
   return {
@@ -100,6 +102,10 @@ function broadcastState(room, extraMsg = null) {
   const payload = { type: "state", state: room.state };
   if (extraMsg) payload.state = { ...room.state, last_msg: extraMsg };
   broadcast(room, payload);
+}
+
+function resetRestartVotes(room) {
+  room.restartVotes = { BLACK: false, WHITE: false };
 }
 
 // ── WebSocket 서버 ──────────────────────────────────────────────────
@@ -158,6 +164,12 @@ function handleMessage(client, msg) {
         send(client.ws, { type: "error", msg: `Room "${roomId}" not found.` });
         return;
       }
+      
+      if (room.players.BLACK && room.players.WHITE) {
+        resetRestartVotes(room);
+        broadcast(room, { type: "game_start", state: room.state });
+        console.log(`[Room] ${roomId} — Both players ready, game starting!`);
+      }
 
       // 빈 역할 탐색
       let role = null;
@@ -199,6 +211,7 @@ function handleMessage(client, msg) {
         if (!result.ok) {
           send(client.ws, { type: "error", msg: result.msg }); return;
         }
+        resetRestartVotes(room);
         broadcastState(room);
       } catch (e) {
         console.error("[Action Error]", e);
@@ -211,11 +224,55 @@ function handleMessage(client, msg) {
     case "restart": {
       const room = getClientRoom(client);
       if (!room) return;
-      room.state = newState();
-      broadcast(room, { type: "state", state: room.state });
-      console.log(`[Room] ${room.id} restarted`);
+    
+      // 게임이 끝났으면 한 명이 눌러도 즉시 재시작
+      if (room.state.game_over) {
+        room.state = newState();
+        resetRestartVotes(room);
+        broadcast(room, {
+          type: "state",
+          state: room.state,
+        });
+        console.log(`[Room] ${room.id} restarted after game over`);
+        break;
+      }
+    
+      // 게임 진행 중이면 양쪽 동의 필요
+      room.restartVotes[client.role] = true;
+    
+      const otherRole = client.role === "BLACK" ? "WHITE" : "BLACK";
+      const other = room.players[otherRole];
+    
+      // 요청자에게 안내
+      send(client.ws, {
+        type: "restart_pending",
+        msg: "재시작 요청을 보냈습니다. 상대 동의를 기다리는 중...",
+        votes: room.restartVotes,
+      });
+    
+      // 상대에게 동의 요청
+      if (other) {
+        send(other.ws, {
+          type: "restart_requested",
+          msg: `${client.role} 플레이어가 재시작을 요청했습니다. 재시작 버튼을 누르면 동의됩니다.`,
+          votes: room.restartVotes,
+        });
+      }
+    
+      // 두 명 모두 동의하면 재시작
+      if (room.restartVotes.BLACK && room.restartVotes.WHITE) {
+        room.state = newState();
+        resetRestartVotes(room);
+        broadcast(room, {
+          type: "state",
+          state: room.state,
+        });
+        console.log(`[Room] ${room.id} restarted by mutual agreement`);
+      }
+    
       break;
     }
+
 
     // 재접속 (sessionId 재사용)
     case "reconnect": {
