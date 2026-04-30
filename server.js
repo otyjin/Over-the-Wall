@@ -194,12 +194,16 @@ function handleMessage(client, msg) {
         send(client.ws, { type: "error", msg: "Not your turn." }); return;
       }
 
-      const result = processAction(msg.action, client.role, room.state);
-      if (!result.ok) {
-        send(client.ws, { type: "error", msg: result.msg }); return;
+      try {
+        const result = processAction(msg.action, room.state);
+        if (!result.ok) {
+          send(client.ws, { type: "error", msg: result.msg }); return;
+        }
+        broadcastState(room);
+      } catch (e) {
+        console.error("[Action Error]", e);
+        send(client.ws, { type: "error", msg: "Server action error." });
       }
-
-      broadcastState(room);
       break;
     }
 
