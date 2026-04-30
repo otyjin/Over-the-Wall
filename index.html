@@ -174,7 +174,7 @@ kbd { background: #252830; border: 1px solid #353840; border-radius: 2px; paddin
 /* 온라인 — 상대 대기 중 오버레이 */
 #waiting-overlay {
   display: none; position: fixed; inset: 0;
-  background: rgba(0,0,0,.7); z-index: 90;
+  background: rgba(0,0,0,.7); z-index: 600;
   align-items: center; justify-content: center; flex-direction: column; gap: 14px;
 }
 #waiting-overlay.show { display: flex; }
@@ -820,10 +820,11 @@ function handleServerMsg(msg) {
       break;
 
     case "room_created":
-      myRole    = msg.role;
+      myRole = msg.role;
       onlineMode = true;
       gs = msg.state;
-      // 상대 대기 화면
+
+      document.getElementById("lobby").style.display = "none";
       document.getElementById("room-code-display").textContent = msg.roomId;
       document.getElementById("waiting-overlay").classList.add("show");
       setLobbyStatus("방 생성됨. 상대방을 기다리는 중...", "wait");
