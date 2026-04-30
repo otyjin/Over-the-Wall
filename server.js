@@ -225,41 +225,30 @@ function handleMessage(client, msg) {
       const room = getClientRoom(client);
       if (!room) return;
     
-      // 게임이 끝났으면 한 명이 눌러도 즉시 재시작
+      // 게임이 끝났으면 즉시 재시작
       if (room.state.game_over) {
         room.state = newState();
         resetRestartVotes(room);
-        broadcast(room, {
-          type: "state",
-          state: room.state,
-        });
+        broadcast(room, { type: "state", state: room.state });
         console.log(`[Room] ${room.id} restarted after game over`);
         break;
       }
     
-      // 게임 진행 중이면 양쪽 동의 필요
+      // 진행 중이면 동의 기록
+      if (room.restartVotes[client.role]) {
+        send(client.ws, {
+          type: "restart_pending",
+          msg: "You have already requested a restart. Waiting for opponent approval...",
+          votes: room.restartVotes,
+        });
+        break;
+      }
       room.restartVotes[client.role] = true;
     
       const otherRole = client.role === "BLACK" ? "WHITE" : "BLACK";
       const other = room.players[otherRole];
     
-      // 요청자에게 안내
-      send(client.ws, {
-        type: "restart_pending",
-        msg: "재시작 요청을 보냈습니다. 상대 동의를 기다리는 중...",
-        votes: room.restartVotes,
-      });
-    
-      // 상대에게 동의 요청
-      if (other) {
-        send(other.ws, {
-          type: "restart_requested",
-          msg: `${client.role} 플레이어가 재시작을 요청했습니다. 재시작 버튼을 누르면 동의됩니다.`,
-          votes: room.restartVotes,
-        });
-      }
-    
-      // 두 명 모두 동의하면 재시작
+      // ★ 먼저 양쪽 동의 완료 여부 확인
       if (room.restartVotes.BLACK && room.restartVotes.WHITE) {
         room.state = newState();
         resetRestartVotes(room);
@@ -268,6 +257,22 @@ function handleMessage(client, msg) {
           state: room.state,
         });
         console.log(`[Room] ${room.id} restarted by mutual agreement`);
+        break;
+      }
+    
+      // ★ 아직 한 명만 동의한 상태일 때만 알림 전송
+      send(client.ws, {
+        type: "restart_pending",
+        msg: "Restart request sent. Waiting for opponent approval...",
+        votes: room.restartVotes,
+      });
+    
+      if (other) {
+        send(other.ws, {
+          type: "restart_requested",
+          msg: `${client.role} requested a restart. Press restart to accept.`,
+          votes: room.restartVotes,
+        });
       }
     
       break;
