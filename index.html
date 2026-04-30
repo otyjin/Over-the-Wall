@@ -863,6 +863,15 @@ function handleServerMsg(msg) {
       showToast(msg.msg);
       setLobbyStatus(msg.msg, "err");
       break;
+      
+    case "restart_pending":
+      showToast(msg.msg);
+      setLobbyStatus(msg.msg, "wait");
+      break;
+    
+    case "restart_requested":
+      showToast(msg.msg);
+      break;
   }
 }
 
